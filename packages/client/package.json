@@ -1,0 +1,45 @@
+{
+  "name": "@levered/client",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Levered Client SDK for dynamically rendering React components.",
+  "main": "./dist/levered-client.umd.js",
+  "module": "./dist/levered-client.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/levered-client.es.js",
+      "require": "./dist/levered-client.umd.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "prepack": "npm run build"
+  },
+  "keywords": [
+    "react",
+    "dynamic-components",
+    "levered"
+  ],
+  "author": "Levered Inc.",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.10",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-jsx-parser": "^2.4.1"
+  }
+}

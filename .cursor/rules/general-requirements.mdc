@@ -1,0 +1,203 @@
+---
+alwaysApply: true
+---
+
+# **Product Requirements Document: Levered Agent & Client SDK**
+
+| Feature          | Levered: Agent (CLI) & Client SDK |
+| :--------------- | :-------------------------------- |
+| **Status**       | Draft                             |
+| **Version**      | 1.2                               |
+| **Last Updated** | October 17, 2025                  |
+| **Author**       | Gemini                            |
+
+## **1\. Introduction**
+
+**Levered** is a platform designed to decouple UI component development and updates from traditional deployment cycles. It empowers teams to dynamically manage and inject React UI components in a live application without requiring a full frontend redeployment.
+
+This document specifically outlines the requirements for the developer-facing tools:
+
+- **The Agent:** A local CLI tool that uses an LLM and a set of deterministic tools to inspect a React codebase, identify target components, and replace them with a Levered placeholder.
+- **The Client SDK:** A lightweight TypeScript library that fetches and renders the correct component variant within the user's application at page load.
+
+These tools will interact with the **Levered Component Service**, which is treated as a separate product with a defined API contract.
+
+## **2\. Goals and Objectives**
+
+### **User Goals**
+
+- **For Developers:** To easily designate specific UI components as "dynamic" without complex refactoring. To reduce time spent on minor UI updates and redeployments.
+- **For Product Managers & Marketers:** To enable rapid UI experiments and content updates by using a system that developers have configured.
+
+### **Business Goals (v1.0)**
+
+- **Prove the Core Concept:** Validate the developer experience of using the Agent to wrap components and the performance of the SDK for rendering.
+- **Achieve Initial Adoption:** Create an MVP that is compelling enough for a small team to integrate into a non-critical part of their application.
+- **Establish a Stable Foundation:** Build a robust Agent and a performant, secure SDK.
+
+## **3\. Scope**
+
+### **In Scope (v1.0)**
+
+- Support for **React.js web applications**, including create-react-app and **client-side rendered Next.js** components (using 'use client').
+- The Agent will be a **TypeScript/Node.js CLI tool** for manual, local use on UNIX-based systems (macOS, Linux).
+- The Agent will use an **Abstract Syntax Tree (AST) parser** as part of its toolset to reliably identify and replace components.
+- Component "memory" and project configuration for the agent will be stored in **local JSON files**.
+- The Client SDK will be a **TypeScript library** for React.
+- The Agent will feature a pluggable architecture to support multiple LLM providers (Gemini, Anthropic, OpenAI).
+- Interaction with the Component Service via its public (read-only for SDK) and private (read/write for Agent) REST APIs.
+
+### **Out of Scope (v1.0)**
+
+- The implementation of the backend Component Service.
+- **React Native**. The dynamic rendering of arbitrary code presents significant platform-specific challenges and is deferred.
+- **Next.js Server Components**. The SDK relies on client-side hooks and is not compatible with a server-only rendering environment in v1.0.
+- Support for other frameworks (Vue, Angular, Svelte).
+- Automated agent execution via CI/CD pipelines.
+- A web-based GUI/dashboard for managing components.
+- Client-side logic for A/B testing or audience-based targeting.
+- Remote/shared storage for the agent's memory.
+
+## **4\. Functional Requirements**
+
+### **4.1. The Agent (CLI Tool)**
+
+The agent is the primary tool developers use to integrate Levered into their codebase.
+
+| ID        | Requirement                      | Details                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| :-------- | :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AG-01** | **Project Initialization**       | A command levered init will create a levered.config.json file in the project root. This file will store the project's public key, secret key, the API endpoint, and LLM provider settings. It will also create a .levered/ directory for local state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **AG-02** | **Codebase Scanning & Analysis** | The `levered scan` command will still traverse entire project directory to map the project structure. It will exclude all files listed in the `.gitignore`. **Additionally, for each `.tsx` or `.jsx` file, it will now:** <br/> 1. Parse the file into an AST. <br/> 2. Identify all targetable JSX elements (initially: `h1`-`h6`, `p`, `span`, `button`). <br/> 3. Generate a unique and stable ID for each element (e.g., based on a hash of the file path and element position). <br/> 4. Inject a `data-levered-id="{unique-id}"` attribute into the opening tag of each element. <br/> 5. Overwrite the original file with the modified content. <br/> The component map in `.levered/memory.json` will be updated as before. |
+| **AG-03** | **Component & Element Wrapping** | The `levered wrap` command is extended to accept either a component name or an element ID. <br/> **Usage:** <br/> - `levered wrap <ComponentName> --file <path>` (existing) <br/> - `levered wrap --id <element-id> --file <path>` (new) <br/> When using `--id`, the agent will locate the specific JSX element with the matching `data-levered-id`, extract its source code, send it to the Component Service, and replace the element in the file with the `<LeveredComponent>` placeholder. The developer can find the `element-id` using their browser's developer tools on their running application.                                                                                                                          |
+| **AG-04** | **Authentication**               | The agent must include a secret API key (from levered.config.json) in its requests to the Component Service for all create/write operations.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+#### **4.1.1. Agent Tool Implementation Details**
+
+To ensure reliability and precision, the Agent will not write code directly. Instead, it will use an LLM to generate a sequence of calls to a predefined set of tools. Below are the implementation specifications for each tool.
+
+**1\. scanFileSystem(dir: string): string\[\]**
+
+- **Purpose:** To get a high-level overview of the codebase structure.
+- **OS Interaction:** The tool will perform recursive directory reading operations.
+- **Implementation:**
+  - Use the fs/promises module from Node.js.
+  - The function will call fs.readdir(dir, { withFileTypes: true }).
+  - It will recursively traverse the directory structure. For each entry, if it's a directory (dirent.isDirectory()), it will recurse. If it's a file, it will add the full path to a list.
+  - It must ignore common non-source directories like node_modules, .git, dist, and build. This will be implemented with a hardcoded blocklist.
+
+**2\. readFile(path: string): string**
+
+- **Purpose:** To read the contents of a specific file for analysis.
+- **OS Interaction:** The tool will perform a single file read operation.
+- **Implementation:**
+  - Use the fs/promises module.
+  - The function will call fs.readFile(path, 'utf-8'). It will include a try...catch block to handle file-not-found errors gracefully, returning a structured error message to the LLM.
+
+**3\. findReactComponentAST(fileContent: string, componentName: string): { code: string, start: number, end: number }**
+
+- **Purpose:** To precisely locate a React component within a file's content.
+- **OS Interaction:** None. This is a pure, in-memory computation.
+- **Implementation:**
+  - It will require @babel/parser and @babel/traverse as dependencies.
+  - The fileContent string will be passed to babel.parse(fileContent, { sourceType: 'module', plugins: \['jsx', 'typescript'\] }) to generate an AST.
+  - @babel/traverse will be used to walk the generated AST.
+  - The traversal logic will look for nodes that represent a React component, such as:
+    - FunctionDeclaration with an id.name matching componentName.
+    - VariableDeclarator where id.name matches componentName and the init is an ArrowFunctionExpression that returns JSX.
+  - Once the correct node is found, its start and end properties (character offsets in the source string) will be retrieved. The slice of the original fileContent between these offsets will be the component's code.
+
+**4\. findJsxElementByIdAST(fileContent: string, elementId: string): { code: string, start: number, end: number }**
+
+- **Purpose:** To precisely locate a specific JSX element within a file's content using its `data-levered-id`.
+- **OS Interaction:** None.
+- **Implementation:**
+  - Use `@babel/parser` to generate an AST from `fileContent`.
+  - Use `@babel/traverse` to walk the AST, specifically visiting `JSXOpeningElement` nodes.
+  - For each element, inspect its `attributes`. Find the attribute where `attribute.name.name` is `data-levered-id` and `attribute.value.value` matches the target `elementId`.
+  - Once the correct node is found, return the start and end character offsets of its parent `JSXElement`. The `code` will be the slice of the original `fileContent` between these offsets.
+
+**5\. replaceCodeInFile(path: string, start: number, end: number, replacementText: string): void**
+
+- **Purpose:** To replace an arbitrary span of code in a file, identified by start and end positions. This tool replaces the more specific `replaceComponentInFile`.
+- **OS Interaction:** File read and write.
+- **Implementation:**
+  1.  Read the file content from `path`.
+  2.  Construct the new file content: `newContent = content.slice(0, start) + replacementText + content.slice(end);`.
+  3.  Check if the SDK import statement (`import { LeveredComponent } from '@levered/client';`) exists. If not, prepend it to `newContent`.
+  4.  Use `fs.writeFile(path, newContent, 'utf-8')` to overwrite the original file.
+
+**6\. callLeveredService(endpoint: string, method: 'POST'|'GET', body: object): object**
+
+- **Purpose:** To communicate with the backend Component Service.
+- **OS Interaction:** Opens a network socket to make an outbound HTTPS request via the operating system's networking stack.
+- **Implementation:**
+  - Use a modern HTTP client library like axios.
+  - The function will read the secretKey and apiEndpoint from the levered.config.json.
+  - It will construct the request with the base URL from the config and the provided endpoint.
+  - For every request, it will set the X-API-Key header with the secretKey.
+  - It will handle JSON serialization of the body for POST requests.
+
+**7\. askUserForConfirmation(prompt: string): boolean**
+
+- **Purpose:** To ensure a human developer approves critical, destructive actions.
+- **OS Interaction:** Interacts with the terminal's standard input (stdin) and standard output (stdout) streams.
+- **Implementation:**
+  - Use the built-in readline module from Node.js.
+  - Create an interface with readline.createInterface({ input: process.stdin, output: process.stdout }).
+  - Use the rl.question() method to display the prompt to the user.
+  - Await the user's input. The function will return true if the input is "y" or "yes" (case-insensitive) and false otherwise.
+
+#### **4.1.2. Multi-LLM Support**
+
+The Agent must be architected to support multiple LLM providers.
+
+- **Configuration (levered.config.json):** The config file will contain a new llm block.  
+  {  
+   "publicKey": "pub\_...",  
+   "secretKey": "sec\_...",  
+   "apiEndpoint": "\[https://api.levered.dev\](https://api.levered.dev)",  
+   "llm": {  
+   "provider": "gemini", // "openai", "anthropic"  
+   "apiKey": "env(GEMINI_API_KEY)" // Reference to environment variable  
+   }  
+  }
+
+- **Adapter Pattern:** The agent's core logic will interact with an LLMProvider interface. Concrete implementations (GeminiProvider, OpenAIProvider, AnthropicProvider) will handle the provider-specific API calls and request/response formats. This isolates the core agent logic from the specifics of any single LLM.
+
+### **4.2. The Client SDK (TypeScript)**
+
+The SDK is integrated into the target React application to render the dynamic components.
+
+| ID         | Requirement               | Details                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| :--------- | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **SDK-01** | **Provider Component**    | The SDK will export a \<LeveredProvider\> component. This component will wrap the application's root (App.js) and be configured with the project's public key and the service API endpoint. It will use React Context to make this configuration available to all placeholder components.                                                                                                                               |
+| **SDK-02** | **Placeholder Component** | The SDK will export a \<LeveredComponent\> that accepts a single prop: componentId.                                                                                                                                                                                                                                                                                                                                     |
+| **SDK-03** | **Runtime Fetching**      | On mount, \<LeveredComponent\> will make a GET request to the Component Service's public endpoint (/api/v1/components/{componentId}/live), sending the public key from the provider for authentication.                                                                                                                                                                                                                 |
+| **SDK-04** | **Dynamic Rendering**     | Upon receiving the component code as a string, the SDK must render it as a React component. **Note:** This is a complex security and technical challenge. V1 may rely on a library that can safely parse and render JSX from a string, or a similar sandboxed approach. The use of eval or dangerouslySetInnerHTML is strictly forbidden. A fallback UI (e.g., a loading spinner or null) must be shown while fetching. |
+| **SDK-05** | **Error Handling**        | If the API call fails or the component fails to render, the placeholder should render null or a configurable error boundary to prevent crashing the entire application.                                                                                                                                                                                                                                                 |
+| **SDK-06** | **Configuration**         | The SDK's README must clearly document how to configure the \<LeveredProvider\> with the public key.                                                                                                                                                                                                                                                                                                                    |
+| **SDK-07** | **Next.js Compatibility** | To ensure compatibility with Next.js App Router, any file importing and using \<LeveredComponent\> must be explicitly marked as a Client Component with the 'use client' directive at the top of the file. This must be documented in the README.                                                                                                                                                                       |
+
+#### **4.2.1. Local Development & Testing**
+
+To enable testing of the SDK on a local project before it's published to npm, developers should follow a standard local package workflow.
+
+1. **Link the SDK:** In the root directory of the SDK's source code, run npm link. This creates a global symlink from your computer's node modules directory to the SDK's directory.
+2. **Use the Linked SDK:** In the root directory of the local test application (e.g., a create-react-app or Next.js project), run npm link @levered/client (assuming @levered/client is the package name). This links the local application's node_modules/@levered/client to the global symlink.
+3. **Real-time Updates:** Any changes made to the SDK source code will now be immediately reflected in the test application upon its next rebuild, allowing for a tight development loop.
+
+Of course. This is a fantastic evolution of the agent's capabilities. Integrating the tagging into the `scan` command is much more efficient than adding a separate step.
+
+Here is a new section that you can add to your product requirements document. It outlines the necessary changes to the `levered scan` and `levered wrap` commands, and specifies the new and modified tools the agent will need to support wrapping sub-components.
+
+## **5\. Non-Functional Requirements**
+
+- **Performance:** The SDK's client-side fetching must be highly performant and non-blocking. The request for a component should not significantly impact the host page's Load Time.
+- **Security:** The platform must prevent any possibility of arbitrary code execution. The dynamic rendering solution in the SDK is the most critical security point and must be thoroughly vetted.
+- **Reliability:** The SDK must gracefully handle failures from the backend service (e.g., network errors, API downtime) and render a fallback state without crashing the host application.
+- **Developer Experience:** The Agent CLI must provide clear commands, helpful feedback, and actionable error messages.
+
+## **6\. Future Considerations (Post v1.0)**
+
+- **Framework Support:** Expand the Agent and SDK to support React Native, Next.js Server Components, Vue.js, and Svelte.
+- **CI/CD Integration:** Allow the agent to run in a pipeline to automatically "lever" new components that match a certain pattern.

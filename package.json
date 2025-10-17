@@ -1,0 +1,16 @@
+{
+  "name": "levered-client",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev --workspace=@levered/client",
+    "build:client": "npm run build --workspace=@levered/client",
+    "dev:agent": "npm run dev --workspace=@levered/agent",
+    "build:agent": "npm run build --workspace=@levered/agent"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
