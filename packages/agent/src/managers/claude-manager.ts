@@ -66,8 +66,10 @@ export class ClaudeManager extends EventEmitter {
 
     // Add --continue flag if we have a session ID
     if (this.sessionId) {
-      args.push("--continue");
-      logger.debug("Using --continue with session ID", { sessionId: this.sessionId });
+      args.push("--continue", this.sessionId);
+      logger.info("Using --continue with session ID", { sessionId: this.sessionId });
+    } else {
+      logger.info("No session ID - starting new conversation");
     }
 
     logger.info("Spawning Claude CLI process", {
@@ -172,7 +174,14 @@ export class ClaudeManager extends EventEmitter {
 
         // Extract session ID if present (stream-json uses session_id)
         if (data.session_id || data.sessionId) {
-          this.sessionId = data.session_id || data.sessionId;
+          const newSessionId = data.session_id || data.sessionId;
+          if (newSessionId !== this.sessionId) {
+            logger.info("Session ID captured", {
+              sessionId: newSessionId,
+              previousSessionId: this.sessionId
+            });
+            this.sessionId = newSessionId;
+          }
         }
 
         // Handle stream-json format: assistant/user messages with nested content
