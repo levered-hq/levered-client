@@ -1,0 +1,20 @@
+{
+  "name": "@levered/chat",
+  "version": "1.0.0",
+  "description": "Simple chat interface for Claude Code Proxy",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "chat",
+    "claude",
+    "proxy"
+  ],
+  "author": "Levered Inc.",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
