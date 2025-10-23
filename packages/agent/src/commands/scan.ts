@@ -52,45 +52,54 @@ export const scanCommand = async () => {
     const newElements: Record<string, { filePath: string }> = {};
 
     for (const file of tsxFiles) {
-      const content = await fs.readFile(file, "utf-8");
-      const ast = parse(content, {
-        sourceType: "module",
-        plugins: ["jsx", "typescript"],
-      });
+      try {
+        console.log(
+          chalk.gray(`  Processing ${path.relative(process.cwd(), file)}...`)
+        );
+        const content = await fs.readFile(file, "utf-8");
+        const ast = parse(content, {
+          sourceType: "module",
+          plugins: ["jsx", "typescript"],
+        });
 
-      let elementIndex = 0;
-      traverse(ast, {
-        JSXOpeningElement(path) {
-          const elementName = t.isJSXIdentifier(path.node.name)
-            ? path.node.name.name
-            : null;
+        let elementIndex = 0;
+        traverse(ast, {
+          JSXOpeningElement(path) {
+            const elementName = t.isJSXIdentifier(path.node.name)
+              ? path.node.name.name
+              : null;
 
-          if (elementName && targetElements.includes(elementName)) {
-            const hasLeveredId = path.node.attributes.some(
-              (attr) =>
-                t.isJSXAttribute(attr) && attr.name.name === "data-levered-id"
-            );
-
-            if (!hasLeveredId) {
-              const id = generateStableId(file, elementName, elementIndex++);
-              path.node.attributes.push(
-                t.jsxAttribute(
-                  t.jsxIdentifier("data-levered-id"),
-                  t.stringLiteral(id)
-                )
+            if (elementName && targetElements.includes(elementName)) {
+              const hasLeveredId = path.node.attributes.some(
+                (attr) =>
+                  t.isJSXAttribute(attr) && attr.name.name === "data-levered-id"
               );
-              taggedElementsCount++;
-              newElements[id] = { filePath: file };
-            }
-          }
-        },
-      });
 
-      const { code } = generate(ast, {
-        retainLines: true,
-        concise: false,
-      });
-      await fs.writeFile(file, code, "utf-8");
+              if (!hasLeveredId) {
+                const id = generateStableId(file, elementName, elementIndex++);
+                path.node.attributes.push(
+                  t.jsxAttribute(
+                    t.jsxIdentifier("data-levered-id"),
+                    t.stringLiteral(id)
+                  )
+                );
+                taggedElementsCount++;
+                newElements[id] = { filePath: file };
+              }
+            }
+          },
+        });
+
+        const { code } = generate(ast, {
+          retainLines: true,
+          concise: false,
+        });
+        await fs.writeFile(file, code, "utf-8");
+      } catch (error) {
+        console.error(chalk.red(`\nFailed to process file: ${file}`));
+        // Re-throw the original error to be caught by the outer try-catch block
+        throw error;
+      }
     }
 
     let memory: LeveredMemory = {
