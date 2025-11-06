@@ -115,7 +115,11 @@ const addToGitignore = async () => {
   }
 };
 
-export const initCommand = async () => {
+interface InitOptions {
+  yes?: boolean;
+}
+
+export const initCommand = async (options: InitOptions = {}) => {
   if (!(await isGitRepository())) {
     console.error(
       chalk.red(
@@ -170,9 +174,11 @@ export const initCommand = async () => {
 
     if (rootLayoutFile) {
       console.log(chalk.yellow(`Found root layout file: ${rootLayoutFile}`));
-      const confirmed = await askUserForConfirmation(
-        "May I wrap it with LeveredProvider to complete setup?"
-      );
+      const confirmed =
+        options.yes ||
+        (await askUserForConfirmation(
+          "May I wrap it with LeveredProvider to complete setup?"
+        ));
       if (confirmed) {
         await wrapRootComponent(rootLayoutFile, config);
         console.log(chalk.green("   ✅ Successfully wrapped root layout!"));

@@ -14,6 +14,7 @@ program.version("1.0.0").description("Levered Agent CLI");
 program
   .command("init")
   .description("Initialize a new Levered project")
+  .option("-y, --yes", "Skip user confirmation")
   .action(initCommand);
 
 program
@@ -36,10 +37,18 @@ program
   .command("listen")
   .description("Start Claude Code proxy server with HTTP API")
   .option("-p, --port <number>", "Port for HTTP server", "3100")
-  .option("-d, --directory <path>", "Working directory for Claude CLI", process.cwd())
+  .option(
+    "-d, --directory <path>",
+    "Working directory for Claude CLI",
+    process.cwd()
+  )
   .option("-c, --claude-path <path>", "Path to Claude CLI binary", "claude")
   .option("--host <string>", "Host to bind to", "localhost")
-  .option("--log-level <level>", "Logging level (debug, info, warn, error)", "info")
+  .option(
+    "--log-level <level>",
+    "Logging level (debug, info, warn, error)",
+    "info"
+  )
   .option("--max-sessions <number>", "Max concurrent sessions", "1")
   .option("--timeout <seconds>", "Request timeout in seconds", "300")
   .action(listenCommand);
