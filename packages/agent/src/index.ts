@@ -51,6 +51,10 @@ program
   )
   .option("--max-sessions <number>", "Max concurrent sessions", "1")
   .option("--timeout <seconds>", "Request timeout in seconds", "300")
+  .option(
+    "--detached",
+    "Run server in background, outputting logs to agent.log"
+  )
   .action(listenCommand);
 
 program.parse(process.argv);
