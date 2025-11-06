@@ -38,12 +38,12 @@ program
   .description("Start Claude Code proxy server with HTTP API")
   .option("-p, --port <number>", "Port for HTTP server", "3100")
   .option(
-    "-d, --directory <path>",
+    "--directory <path>",
     "Working directory for Claude CLI",
     process.cwd()
   )
   .option("-c, --claude-path <path>", "Path to Claude CLI binary", "claude")
-  .option("--host <string>", "Host to bind to", "localhost")
+  .option("-h, --host <string>", "Host to bind to", "localhost")
   .option(
     "--log-level <level>",
     "Logging level (debug, info, warn, error)",
@@ -52,7 +52,7 @@ program
   .option("--max-sessions <number>", "Max concurrent sessions", "1")
   .option("--timeout <seconds>", "Request timeout in seconds", "300")
   .option(
-    "--detached",
+    "-d, --detached",
     "Run server in background, outputting logs to agent.log"
   )
   .action(listenCommand);
