@@ -24,6 +24,7 @@ const targetElements = [
   "p",
   "span",
   "button",
+  "div",
 ];
 
 const generateStableId = (

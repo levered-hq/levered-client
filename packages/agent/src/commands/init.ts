@@ -129,12 +129,18 @@ export const initCommand = async () => {
     chalk.bold.magenta("\nWelcome to Levered! Let's get you set up.")
   );
 
-  const publicKey = await askUserForInput("Enter your Public Key:");
-  const secretKey = await askUserForInput("Enter your Secret Key:");
+  const publicKey =
+    process.env.LEVERED_PUBLIC_KEY ||
+    (await askUserForInput("Enter your Public Key:"));
+  const secretKey =
+    process.env.LEVERED_SECRET_KEY ||
+    (await askUserForInput("Enter your Secret Key:"));
   const apiEndpoint =
+    process.env.LEVERED_API_ENDPOINT ||
     (await askUserForInput(
       "Enter the Levered API Endpoint (leave blank for default):"
-    )) || "https://api.levered.dev";
+    )) ||
+    "https://api.levered.dev";
 
   const config = {
     publicKey,
